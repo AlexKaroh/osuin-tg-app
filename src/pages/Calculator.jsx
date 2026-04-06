@@ -9,7 +9,26 @@ const DELIVERY_RATES = {
 };
 
 const PACKAGING_USD_PER_KG = 0.15;
-const NON_MINSK_USD_PER_KG = 8;
+const NON_MINSK_USD_PER_KG = 3;
+// 1 BYN = 2.5 CNY → 1 CNY = 0.4 BYN
+const CNY_TO_BYN_RATE = 1 / 2.15;
+const VAT_RATE = 0.2;
+
+const COMMISSION_TIERS = [
+  { min: 10, max: 100, rate: 0.2 },
+  { min: 101, max: 200, rate: 0.15 },
+  { min: 201, max: 350, rate: 0.125 },
+  { min: 351, max: 500, rate: 0.12 },
+  { min: 501, max: 1000, rate: 0.11 },
+  { min: 1001, max: 1500, rate: 0.1 },
+  { min: 1501, max: 2000, rate: 0.09 },
+  { min: 2001, max: 2500, rate: 0.08 },
+  { min: 2501, max: 3000, rate: 0.07 },
+  { min: 3001, max: 3500, rate: 0.06 },
+  { min: 3501, max: 4000, rate: 0.05 },
+  { min: 4001, max: 4500, rate: 0.04 },
+  { min: 4501, max: 10500, rate: 0.03 },
+];
 
 function parsePositiveNumber(str) {
   const n = Number(String(str).replace(",", ".").trim());
@@ -28,6 +47,14 @@ function parseNonNegativeGrams(str) {
 /** Объёмный вес, кг: длина × ширина × высота (см) ÷ 6000 */
 function volumetricWeightKg(lCm, wCm, hCm) {
   return (lCm * wCm * hCm) / 6000;
+}
+
+function commissionRateForCny(amountCny) {
+  if (!Number.isFinite(amountCny) || amountCny <= 0) return null;
+  const tier =
+    COMMISSION_TIERS.find((t) => amountCny >= t.min && amountCny <= t.max) ??
+    COMMISSION_TIERS[COMMISSION_TIERS.length - 1];
+  return tier.rate;
 }
 
 /**
@@ -92,8 +119,10 @@ export default function Calculator() {
   const [widthCm, setWidthCm] = useState("30");
   const [lengthCm, setLengthCm] = useState("40");
   const [heightCm, setHeightCm] = useState("15");
+  const [knowWeight, setKnowWeight] = useState(false);
   const [knowDimensions, setKnowDimensions] = useState(false);
   const [isMinsk, setIsMinsk] = useState(true);
+  const [goodsPriceCny, setGoodsPriceCny] = useState("");
   const [telegramLink, setTelegramLink] = useState("");
   const [sendState, setSendState] = useState("idle");
   const [sendError, setSendError] = useState("");
@@ -102,10 +131,10 @@ export default function Calculator() {
     "flex-1 py-1 rounded-full text-sm transition-all duration-200";
 
   const calc = useMemo(() => {
-    const grams = parseNonNegativeGrams(weightGrams);
+    const grams = knowWeight ? parseNonNegativeGrams(weightGrams) : null;
     const actualKg = grams != null ? grams / 1000 : 0;
     const weightOk = grams != null;
-    const weightEntered = weightGrams.trim() !== "";
+    const weightEntered = knowWeight && weightGrams.trim() !== "";
 
     const wVal = parsePositiveNumber(widthCm);
     const lVal = parsePositiveNumber(lengthCm);
@@ -122,6 +151,25 @@ export default function Calculator() {
     const freightUsd = shippingUsd(billable, delivery, isMinsk);
     const totalUsd = packagingUsd + freightUsd;
 
+    const goodsCnyRaw = Number(
+      String(goodsPriceCny || "")
+        .replace(",", ".")
+        .trim(),
+    );
+    const goodsCnyValid =
+      Number.isFinite(goodsCnyRaw) && goodsCnyRaw > 0 ? goodsCnyRaw : null;
+    const commissionRate =
+      goodsCnyValid != null ? commissionRateForCny(goodsCnyValid) : null;
+    const fee =
+      goodsCnyValid != null && commissionRate != null
+        ? goodsCnyValid * commissionRate
+        : 0;
+    const vatOnFee = fee * VAT_RATE;
+    const goodsCnyWithFee =
+      goodsCnyValid != null ? goodsCnyValid + fee + vatOnFee : 0;
+    const goodsByn =
+      goodsCnyValid != null ? goodsCnyWithFee * CNY_TO_BYN_RATE : 0;
+
     return {
       actualKg,
       volKg,
@@ -133,6 +181,9 @@ export default function Calculator() {
       useDimensions,
       weightOk,
       weightEntered,
+      goodsCnyValid,
+      goodsCnyWithFee,
+      goodsByn,
     };
   }, [
     weightGrams,
@@ -140,6 +191,8 @@ export default function Calculator() {
     lengthCm,
     heightCm,
     knowDimensions,
+    knowWeight,
+    goodsPriceCny,
     delivery,
     isMinsk,
   ]);
@@ -155,6 +208,13 @@ export default function Calculator() {
           maximumFractionDigits: 2,
         })
       : "—";
+  const fmtByn = (v) =>
+    Number.isFinite(v)
+      ? v.toLocaleString("ru-RU", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      : "—";
 
   const canSend = calc.weightOk && (!knowDimensions || calc.dimsOk);
   const tgUser = WebApp?.initDataUnsafe?.user;
@@ -164,7 +224,8 @@ export default function Calculator() {
     .trim();
   const canSendViaDirectTelegram =
     Boolean(TELEGRAM_BOT_TOKEN) && Boolean(TELEGRAM_CHAT_ID);
-  const canSendRequest = canSend && (Boolean(managerWebhookUrl) || canSendViaDirectTelegram);
+  const canSendRequest =
+    canSend && (Boolean(managerWebhookUrl) || canSendViaDirectTelegram);
 
   async function sendApplication() {
     if (!canSendRequest) return;
@@ -243,8 +304,17 @@ export default function Calculator() {
       <div className="w-[320px] py-4 text-white">
         <h2 className="text-2xl font-semibold text-center mb-6">Калькулятор</h2>
 
-        <div className="bg-gray-300 text-blue-700 text-xl font-semibold py-4 rounded-2xl text-center mb-4">
-          Итого (доставка + упаковка): {fmtUsd(calc.totalUsd)} $
+        <div className="bg-gray-300 text-blue-700 text-base font-medium py-3 rounded-2xl text-center mb-4 space-y-1">
+          <div>
+            Стоимость доставки:{" "}
+            <span className="text-xl font-semibold">
+              {fmtUsd(calc.totalUsd)} $
+            </span>
+          </div>
+          <div className="text-xs text-blue-800/80">
+            Стоимость товара:{" "}
+            <span className="font-semibold">{fmtByn(calc.goodsByn)} BYN</span>
+          </div>
         </div>
 
         <div className="bg-gray-300 rounded-full p-1 flex mb-3">
@@ -309,21 +379,68 @@ export default function Calculator() {
 
         <div className="bg-gray-300 rounded-2xl p-3 mb-3 text-blue-700">
           <label className="block text-xs font-medium mb-1.5 opacity-90">
-            Вес, г
+            Стоимость товара, ¥
           </label>
           <input
             type="text"
             inputMode="decimal"
-            value={weightGrams}
-            onChange={(e) => setWeightGrams(e.target.value)}
-            placeholder="Например, 800"
+            value={goodsPriceCny}
+            onChange={(e) => setGoodsPriceCny(e.target.value)}
+            placeholder="Например, 100"
             className={inputClass}
             autoComplete="off"
           />
-          {!calc.weightOk && calc.weightEntered && (
+          {goodsPriceCny.trim() !== "" && calc.goodsCnyValid == null && (
             <p className="text-red-700 text-xs mt-1.5">
-              Введите неотрицательное число граммов.
+              Введите положительное число в юанях.
             </p>
+          )}
+          {calc.goodsCnyValid != null && (
+            <p className="text-[11px] text-blue-700/90 mt-1.5">
+              Цена с комиссией (1,24×):{" "}
+              <span className="font-semibold">
+                {calc.goodsCnyWithFee.toLocaleString("ru-RU", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}{" "}
+                ¥{" "}
+              </span>
+              ≈{" "}
+              <span className="font-semibold">{fmtByn(calc.goodsByn)} BYN</span>
+            </p>
+          )}
+        </div>
+
+        <div className="bg-gray-300 rounded-2xl p-3 mb-3 text-blue-700">
+          <label className="mb-2 flex items-center gap-2 text-xs font-medium opacity-90">
+            <input
+              type="checkbox"
+              checked={knowWeight}
+              onChange={(e) => setKnowWeight(e.target.checked)}
+              className="h-4 w-4 accent-blue-600"
+            />
+            Знаю вес груза
+          </label>
+          {knowWeight && (
+            <>
+              <label className="block text-xs font-medium mb-1.5 opacity-90">
+                Вес, г
+              </label>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={weightGrams}
+                onChange={(e) => setWeightGrams(e.target.value)}
+                placeholder="Например, 800"
+                className={inputClass}
+                autoComplete="off"
+              />
+              {!calc.weightOk && calc.weightEntered && (
+                <p className="text-red-700 text-xs mt-1.5">
+                  Введите неотрицательное число граммов.
+                </p>
+              )}
+            </>
           )}
         </div>
 
@@ -390,6 +507,44 @@ export default function Calculator() {
           )}
         </div>
 
+        <div className="bg-gray-300 rounded-2xl p-3 mb-4 text-blue-700 space-y-2">
+          <p className="text-xs font-medium opacity-90">Заявка менеджеру</p>
+          <p className="text-[11px] text-blue-700/90">
+            Отправим с Telegram ID:{" "}
+            <span className="font-medium">{tgUser?.id ?? "не определен"}</span>
+            {tgUser?.username ? ` (@${tgUser.username})` : ""}
+          </p>
+          <input
+            type="text"
+            value={telegramLink}
+            onChange={(e) => setTelegramLink(e.target.value)}
+            placeholder="@username или https://t.me/username"
+            className={inputClass}
+            autoComplete="off"
+          />
+          <button
+            type="button"
+            onClick={sendApplication}
+            disabled={sendState === "sending"}
+            className={cn(
+              "w-full rounded-xl py-2.5 text-sm font-medium transition-all",
+              sendState === "sending"
+                ? "bg-blue-300 text-white/80 cursor-not-allowed"
+                : "bg-blue-600 text-white active:scale-[0.99]",
+            )}
+          >
+            {sendState === "sending"
+              ? "Отправка..."
+              : "Отправить заявку менеджеру"}
+          </button>
+          {sendState === "success" && (
+            <p className="text-[11px] text-green-700">Заявка отправлена.</p>
+          )}
+          {sendState === "error" && (
+            <p className="text-[11px] text-red-700">{sendError}</p>
+          )}
+        </div>
+
         <h3 className="text-lg text-center text-gray-300 mb-3">Информация</h3>
 
         <div className="mb-3 rounded-2xl bg-gray-200 px-3 py-2 text-gray-700">
@@ -439,53 +594,12 @@ export default function Calculator() {
             : <span className="font-medium">{fmtUsd(calc.freightUsd)} $</span>
           </p>
           <p className="pt-1 font-semibold text-base">
-            Итого (доставка + упаковка): {fmtUsd(calc.totalUsd)} $
+            Итого доставка + упаковка: {fmtUsd(calc.totalUsd)} $
+          </p>
+          <p className="text-xs text-blue-800/80">
+            Стоимость товара: {fmtByn(calc.goodsByn)} BYN
           </p>
         </div>
-
-        <div className="bg-gray-300 rounded-2xl p-3 mb-4 text-blue-700 space-y-2">
-          <p className="text-xs font-medium opacity-90">Заявка менеджеру</p>
-          <p className="text-[11px] text-blue-700/90">
-            Отправим с Telegram ID:{" "}
-            <span className="font-medium">{tgUser?.id ?? "не определен"}</span>
-            {tgUser?.username ? ` (@${tgUser.username})` : ""}
-          </p>
-          <input
-            type="text"
-            value={telegramLink}
-            onChange={(e) => setTelegramLink(e.target.value)}
-            placeholder="@username или https://t.me/username"
-            className={inputClass}
-            autoComplete="off"
-          />
-          <button
-            type="button"
-            onClick={sendApplication}
-            disabled={!canSendRequest || sendState === "sending"}
-            className={cn(
-              "w-full rounded-xl py-2.5 text-sm font-medium transition-all",
-              !canSendRequest || sendState === "sending"
-                ? "bg-blue-300 text-white/80 cursor-not-allowed"
-                : "bg-blue-600 text-white active:scale-[0.99]",
-            )}
-          >
-            {sendState === "sending"
-              ? "Отправка..."
-              : "Отправить заявку менеджеру"}
-          </button>
-          {!managerWebhookUrl && canSendViaDirectTelegram && (
-            <p className="text-[11px] text-blue-700/90">
-              Используется прямой Telegram API.
-            </p>
-          )}
-          {sendState === "success" && (
-            <p className="text-[11px] text-green-700">Заявка отправлена.</p>
-          )}
-          {sendState === "error" && (
-            <p className="text-[11px] text-red-700">{sendError}</p>
-          )}
-        </div>
-
         <div className="bg-gray-300 rounded-2xl p-3 text-blue-700 text-xs leading-relaxed space-y-2">
           <p>
             <strong>Вес:</strong> берётся большее из фактического (на весах) и
