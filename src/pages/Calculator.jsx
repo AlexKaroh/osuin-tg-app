@@ -224,16 +224,19 @@ export default function Calculator() {
         })
       : "—";
 
-  const canSend = calc.weightOk && (!knowDimensions || calc.dimsOk);
+  const canSend = (!knowWeight || calc.weightOk) && (!knowDimensions || calc.dimsOk);
   const tgUser = WebApp?.initDataUnsafe?.user;
   const tgName = [tgUser?.first_name, tgUser?.last_name]
     .filter(Boolean)
     .join(" ")
     .trim();
+  const hasTelegramData = Boolean(tgUser?.id || tgUser?.username || tgName);
   const canSendViaDirectTelegram =
     Boolean(TELEGRAM_BOT_TOKEN) && Boolean(TELEGRAM_CHAT_ID);
   const canSendRequest =
-    canSend && (Boolean(managerWebhookUrl) || canSendViaDirectTelegram);
+    canSend &&
+    (Boolean(managerWebhookUrl) || canSendViaDirectTelegram) &&
+    (hasTelegramData || telegramLink.trim() !== "");
 
   async function sendApplication() {
     if (!canSendRequest) return;
@@ -530,26 +533,23 @@ export default function Calculator() {
 
         <div className="bg-gray-300 rounded-2xl p-3 mb-4 text-blue-700 space-y-2">
           <p className="text-xs font-medium opacity-90">Заявка менеджеру</p>
-          <p className="text-[11px] text-blue-700/90">
-            Отправим с Telegram ID:{" "}
-            <span className="font-medium">{tgUser?.id ?? "не определен"}</span>
-            {tgUser?.username ? ` (@${tgUser.username})` : ""}
-          </p>
-          <input
-            type="text"
-            value={telegramLink}
-            onChange={(e) => setTelegramLink(e.target.value)}
-            placeholder="@username или https://t.me/username"
-            className={inputClass}
-            autoComplete="off"
-          />
+          {!hasTelegramData && (
+            <input
+              type="text"
+              value={telegramLink}
+              onChange={(e) => setTelegramLink(e.target.value)}
+              placeholder="@username или https://t.me/username"
+              className={inputClass}
+              autoComplete="off"
+            />
+          )}
           <button
             type="button"
             onClick={sendApplication}
-            disabled={sendState === "sending"}
+            disabled={sendState === "sending" || !canSendRequest}
             className={cn(
               "w-full rounded-xl py-2.5 text-sm font-medium transition-all",
-              sendState === "sending"
+              sendState === "sending" || !canSendRequest
                 ? "bg-blue-300 text-white/80 cursor-not-allowed"
                 : "bg-blue-600 text-white active:scale-[0.99]",
             )}
