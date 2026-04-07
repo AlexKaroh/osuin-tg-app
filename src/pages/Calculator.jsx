@@ -94,9 +94,9 @@ function buildApplicationText(data) {
   const lines = [
     "❗️ Новая заявка (калькулятор):",
     "",
-    `UserName: ${userName}`,
+    `Пользователь: ${userName}`,
     `Тип доставки: ${data.deliveryLabel}`,
-    data.cityLabel,
+    `Место доставки: ${data.cityLabel}`,
     `Стоимость товара: ${data.goodsByn} BYN`,
     `Стоимость доставки: ${data.totalByn} BYN`,
   ];
