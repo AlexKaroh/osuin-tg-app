@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import WebApp from "@twa-dev/sdk";
 import { cn } from "../lib/utils";
+import clsx from 'clsx';
 
 const DELIVERY_RATES = {
   express: { label: "Авиа экспресс", firstKgUsd: 22, additionalKgUsd: 13 },
@@ -12,6 +13,7 @@ const PACKAGING_USD_PER_KG = 0.15;
 const NON_MINSK_USD_PER_KG = 3;
 // 1 BYN = 2.5 CNY → 1 CNY = 0.4 BYN
 const CNY_TO_BYN_RATE = 1 / 2.15;
+const USD_TO_BYN_RATE = Number(import.meta.env.VITE_USD_TO_BYN_RATE) || 3.2;
 const VAT_RATE = 0.2;
 
 const COMMISSION_TIERS = [
@@ -78,7 +80,7 @@ function shippingUsd(billableKg, deliveryKey, isMinsk) {
   if (billableKg <= 0) return 0;
   if (!isMinsk) return billableKg * NON_MINSK_USD_PER_KG;
   return shippingUsdMinsk(deliveryKey, billableKg);
-}
+} 
 
 const inputClass =
   "w-full min-w-0 rounded-xl bg-white/95 text-blue-700 px-2 py-2 text-sm border-0 outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-blue-400/70";
@@ -100,9 +102,9 @@ function buildApplicationText(data) {
     `Вес (факт): ${data.actualKg} кг`,
     `Объёмный вес: ${data.volKg} кг`,
     `Расчётный вес: ${data.billableKg} кг`,
-    `Упаковка: ${data.packagingUsd} $`,
-    `Доставка: ${data.freightUsd} $`,
-    `Итого: ${data.totalUsd} $`,
+    `Упаковка: ${data.packagingByn} BYN`,
+    `Доставка: ${data.freightByn} BYN`,
+    `Итого: ${data.totalByn} BYN`,
     `Учитывать габариты: ${data.knowDimensions ? "Да" : "Нет"}`,
   ];
   if (data.knowDimensions) {
@@ -150,6 +152,9 @@ export default function Calculator() {
     const packagingUsd = PACKAGING_USD_PER_KG * billable;
     const freightUsd = shippingUsd(billable, delivery, isMinsk);
     const totalUsd = packagingUsd + freightUsd;
+    const packagingByn = packagingUsd * USD_TO_BYN_RATE;
+    const freightByn = freightUsd * USD_TO_BYN_RATE;
+    const totalByn = totalUsd * USD_TO_BYN_RATE;
 
     const goodsCnyRaw = Number(
       String(goodsPriceCny || "")
@@ -177,6 +182,9 @@ export default function Calculator() {
       packagingUsd,
       freightUsd,
       totalUsd,
+      packagingByn,
+      freightByn,
+      totalByn,
       dimsOk,
       useDimensions,
       weightOk,
@@ -247,6 +255,9 @@ export default function Calculator() {
         packagingUsd: fmtUsd(calc.packagingUsd),
         freightUsd: fmtUsd(calc.freightUsd),
         totalUsd: fmtUsd(calc.totalUsd),
+        packagingByn: fmtByn(calc.packagingByn),
+        freightByn: fmtByn(calc.freightByn),
+        totalByn: fmtByn(calc.totalByn),
         knowDimensions,
         widthCm,
         lengthCm,
@@ -264,6 +275,9 @@ export default function Calculator() {
           packagingUsd: fmtUsd(calc.packagingUsd),
           freightUsd: fmtUsd(calc.freightUsd),
           totalUsd: fmtUsd(calc.totalUsd),
+          packagingByn: fmtByn(calc.packagingByn),
+          freightByn: fmtByn(calc.freightByn),
+          totalByn: fmtByn(calc.totalByn),
           knowDimensions,
           widthCm,
           lengthCm,
@@ -306,14 +320,15 @@ export default function Calculator() {
 
         <div className="bg-gray-300 text-blue-700 text-base font-medium py-3 rounded-2xl text-center mb-4 space-y-1">
           <div>
-            Стоимость доставки:{" "}
-            <span className="text-xl font-semibold">
-              {fmtUsd(calc.totalUsd)} $
-            </span>
-          </div>
-          <div className="text-xs text-blue-800/80">
             Стоимость товара:{" "}
             <span className="font-semibold">{fmtByn(calc.goodsByn)} BYN</span>
+
+          </div>
+          <div className="text-xs text-blue-800/80">
+            Стоимость доставки:{" "}
+            <span className="font-semibold">
+              {fmtByn(calc.totalByn)} BYN
+            </span>
           </div>
         </div>
 
@@ -395,7 +410,7 @@ export default function Calculator() {
               Введите положительное число в юанях.
             </p>
           )}
-          {calc.goodsCnyValid != null && (
+          {/* {calc.goodsCnyValid != null && (
             <p className="text-[11px] text-blue-700/90 mt-1.5">
               Цена с комиссией (1,24×):{" "}
               <span className="font-semibold">
@@ -408,11 +423,14 @@ export default function Calculator() {
               ≈{" "}
               <span className="font-semibold">{fmtByn(calc.goodsByn)} BYN</span>
             </p>
-          )}
+          )} */}
         </div>
 
         <div className="bg-gray-300 rounded-2xl p-3 mb-3 text-blue-700">
-          <label className="mb-2 flex items-center gap-2 text-xs font-medium opacity-90">
+          <label className={clsx(
+              "flex items-center gap-2 text-xs font-medium opacity-90",
+              knowWeight && "mb-2"
+            )}>
             <input
               type="checkbox"
               checked={knowWeight}
@@ -445,7 +463,10 @@ export default function Calculator() {
         </div>
 
         <div className="bg-gray-300 rounded-2xl p-3 mb-4 text-blue-700">
-          <label className="mb-2 flex items-center gap-2 text-xs font-medium opacity-90">
+          <label className={clsx(
+              "flex items-center gap-2 text-xs font-medium opacity-90",
+              knowDimensions && "mb-2"
+            )}>
             <input
               type="checkbox"
               checked={knowDimensions}
@@ -584,17 +605,17 @@ export default function Calculator() {
           <hr className="border-blue-400/40" />
           <p>
             Упаковка ({PACKAGING_USD_PER_KG} USD/кг):{" "}
-            <span className="font-medium">{fmtUsd(calc.packagingUsd)} $</span>
+            <span className="font-medium">{fmtByn(calc.packagingByn)} BYN</span>
           </p>
           <p>
             Доставка
             {!isMinsk
               ? ` (${NON_MINSK_USD_PER_KG} USD/кг)`
               : ` (${DELIVERY_RATES[delivery].label})`}
-            : <span className="font-medium">{fmtUsd(calc.freightUsd)} $</span>
+            : <span className="font-medium">{fmtByn(calc.freightByn)} BYN</span>
           </p>
           <p className="pt-1 font-semibold text-base">
-            Итого доставка + упаковка: {fmtUsd(calc.totalUsd)} $
+            Итого доставка + упаковка: {fmtByn(calc.totalByn)} BYN
           </p>
           <p className="text-xs text-blue-800/80">
             Стоимость товара: {fmtByn(calc.goodsByn)} BYN
