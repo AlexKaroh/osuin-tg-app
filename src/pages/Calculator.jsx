@@ -90,26 +90,22 @@ const TELEGRAM_CHAT_ID = "-1003049236111";
 const TELEGRAM_MESSAGE_THREAD_ID = 1759;
 
 function buildApplicationText(data) {
+  const userName = data.telegramUsername || data.telegramLink || "Не указан";
   const lines = [
     "❗️ Новая заявка (калькулятор):",
     "",
-    `Telegram ID: ${data.telegramId || "Не определен"}`,
-    `Telegram username: ${data.telegramUsername || "Не указан"}`,
-    `Telegram name: ${data.telegramName || "Не указано"}`,
-    `Telegram ссылка: ${data.telegramLink || "Не указана"}`,
+    `UserName: ${userName}`,
     `Тип доставки: ${data.deliveryLabel}`,
-    `Город: ${data.cityLabel}`,
-    `Вес (факт): ${data.actualKg} кг`,
-    `Объёмный вес: ${data.volKg} кг`,
-    `Расчётный вес: ${data.billableKg} кг`,
-    `Упаковка: ${data.packagingByn} BYN`,
-    `Доставка: ${data.freightByn} BYN`,
-    `Итого: ${data.totalByn} BYN`,
-    `Учитывать габариты: ${data.knowDimensions ? "Да" : "Нет"}`,
+    data.cityLabel,
+    `Стоимость товара: ${data.goodsByn} BYN`,
+    `Стоимость доставки: ${data.totalByn} BYN`,
   ];
+  if (data.knowWeight && data.weightOk) {
+    lines.push(`Вес груза: ${data.actualKg} кг`);
+  }
   if (data.knowDimensions) {
     lines.push(
-      `Габариты (Ш×Д×В): ${data.widthCm}×${data.lengthCm}×${data.heightCm} см`,
+      `Габариты груза: ${data.widthCm}×${data.lengthCm}×${data.heightCm} см`,
     );
   }
   return lines.join("\n");
@@ -264,17 +260,31 @@ export default function Calculator() {
         packagingByn: fmtByn(calc.packagingByn),
         freightByn: fmtByn(calc.freightByn),
         totalByn: fmtByn(calc.totalByn),
+        goodsCnyWithFee: calc.goodsCnyWithFee.toLocaleString("ru-RU", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }),
+        goodsByn: fmtByn(calc.goodsByn),
+        knowWeight,
+        weightOk: calc.weightOk,
         knowDimensions,
         widthCm,
         lengthCm,
         heightCm,
         text: buildApplicationText({
           telegramId: tgUser?.id ?? null,
-          telegramUsername: tgUser?.username ?? null,
+          telegramUsername: tgUser?.username ? `@${tgUser.username}` : null,
           telegramName: tgName || null,
           telegramLink: telegramLink.trim() || null,
           deliveryLabel: DELIVERY_RATES[delivery]?.label ?? delivery,
           cityLabel: isMinsk ? "Минск" : "Не Минск",
+          goodsCnyWithFee: calc.goodsCnyWithFee.toLocaleString("ru-RU", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          }),
+          goodsByn: fmtByn(calc.goodsByn),
+          knowWeight,
+          weightOk: calc.weightOk,
           actualKg: fmtKg(calc.actualKg),
           volKg: fmtKg(calc.volKg),
           billableKg: fmtKg(calc.billableKg),
