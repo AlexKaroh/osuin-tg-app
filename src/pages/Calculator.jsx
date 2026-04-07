@@ -225,7 +225,10 @@ export default function Calculator() {
       : "—";
 
   const canSend = (!knowWeight || calc.weightOk) && (!knowDimensions || calc.dimsOk);
-  const tgUser = WebApp?.initDataUnsafe?.user;
+  const tgUser =
+    WebApp?.initDataUnsafe?.user ??
+    globalThis?.Telegram?.WebApp?.initDataUnsafe?.user ??
+    null;
   const tgName = [tgUser?.first_name, tgUser?.last_name]
     .filter(Boolean)
     .join(" ")
