@@ -366,80 +366,86 @@ function MarketplaceModal({ item, onClose }) {
 
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-[#101828]/55 p-3 pt-16"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-[#101828]/55 px-3 pb-28 pt-10 sm:pt-16"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
     >
       <motion.div
-        className="w-full max-w-md rounded-[14px] bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.28)]"
+        className="flex max-h-[min(90dvh,calc(100dvh-10.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] w-full max-w-md flex-col overflow-hidden rounded-[14px] bg-white shadow-[0_24px_80px_rgba(15,23,42,0.28)]"
         initial={{ y: -24, opacity: 0, scale: 0.98 }}
         animate={{ y: 0, opacity: 1, scale: 1 }}
         exit={{ y: -24, opacity: 0, scale: 0.98 }}
         transition={{ type: "spring", stiffness: 320, damping: 28 }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div
-          className={`mb-4 h-2 rounded-full bg-gradient-to-r ${item.accent}`}
-        />
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#667085]">
-              Marketplace
-            </p>
-            <h3 className="mt-1 text-2xl font-semibold text-[#101828]">
-              {item.name}
-            </h3>
-            <p className="mt-1 text-sm text-[#475467]">{item.tagline}</p>
+        <div className="shrink-0 px-5 pt-5">
+          <div
+            className={`mb-4 h-2 rounded-full bg-gradient-to-r ${item.accent}`}
+          />
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div className="min-w-0 pr-1">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#667085]">
+                Marketplace
+              </p>
+              <h3 className="mt-1 text-2xl font-semibold text-[#101828]">
+                {item.name}
+              </h3>
+              <p className="mt-1 text-sm text-[#475467]">{item.tagline}</p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="shrink-0 rounded-full bg-[#F2F4F7] px-3 py-1.5 text-sm text-[#344054]"
+            >
+              Закрыть
+            </button>
           </div>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5">
+          <div className="space-y-4 pb-2 text-sm text-[#344054]">
+            <section className="rounded-lg bg-[#F8FAFC] p-4">
+              <p className="font-medium text-[#101828]">О площадке</p>
+              <p className="mt-1 leading-6">{item.description}</p>
+            </section>
+
+            <section className="rounded-lg bg-[#F8FAFC] p-4">
+              <p className="font-medium text-[#101828]">Что покупать</p>
+              <p className="mt-1 leading-6">{item.whatToBuy}</p>
+            </section>
+
+            <section className="rounded-lg bg-[#F8FAFC] p-4">
+              <p className="font-medium text-[#101828]">Особенности</p>
+              <div className="mt-2 space-y-2">
+                {item.features.map((feature) => (
+                  <p key={feature} className="leading-6">
+                    {feature}
+                  </p>
+                ))}
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <div className="shrink-0 border-t border-[#EAECF0] bg-white px-5 pb-5 pt-4">
           <button
             type="button"
-            onClick={onClose}
-            className="rounded-full bg-[#F2F4F7] px-3 py-1.5 text-sm text-[#344054]"
+            className={`flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r py-3.5 text-sm font-semibold text-white shadow-md transition active:scale-[0.99] ${item.accent}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              openMarketplaceStore(getMarketplaceAppUrl(item));
+            }}
           >
-            Закрыть
+            {storeIos ? (
+              <IconApple className="h-5 w-5 shrink-0 opacity-95" />
+            ) : (
+              <IconAndroid className="h-5 w-5 shrink-0 opacity-95" />
+            )}
+            Скачать приложение
           </button>
         </div>
-
-        <div className="space-y-4 text-sm text-[#344054]">
-          <section className="rounded-lg bg-[#F8FAFC] p-4">
-            <p className="font-medium text-[#101828]">О площадке</p>
-            <p className="mt-1 leading-6">{item.description}</p>
-          </section>
-
-          <section className="rounded-lg bg-[#F8FAFC] p-4">
-            <p className="font-medium text-[#101828]">Что покупать</p>
-            <p className="mt-1 leading-6">{item.whatToBuy}</p>
-          </section>
-
-          <section className="rounded-lg bg-[#F8FAFC] p-4">
-            <p className="font-medium text-[#101828]">Особенности</p>
-            <div className="mt-2 space-y-2">
-              {item.features.map((feature) => (
-                <p key={feature} className="leading-6">
-                  {feature}
-                </p>
-              ))}
-            </div>
-          </section>
-        </div>
-
-        <button
-          type="button"
-          className={`mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r py-3.5 text-sm font-semibold text-white shadow-md transition active:scale-[0.99] ${item.accent}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            openMarketplaceStore(getMarketplaceAppUrl(item));
-          }}
-        >
-          {storeIos ? (
-            <IconApple className="h-5 w-5 shrink-0 opacity-95" />
-          ) : (
-            <IconAndroid className="h-5 w-5 shrink-0 opacity-95" />
-          )}
-          Скачать приложение
-        </button>
       </motion.div>
     </motion.div>
   );
@@ -448,14 +454,14 @@ function MarketplaceModal({ item, onClose }) {
 function AllMarketplacesModal({ items, onClose, onSelect }) {
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-[#101828]/45 p-3 pt-12"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-[#101828]/45 px-3 pb-28 pt-10 sm:pt-12"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
     >
       <motion.div
-        className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-[14px] bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.24)]"
+        className="max-h-[min(90dvh,calc(100dvh-10.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] w-full max-w-md overflow-y-auto overscroll-contain rounded-[14px] bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.24)]"
         initial={{ y: -24, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: -24, opacity: 0 }}

@@ -195,14 +195,6 @@ export default function Orders() {
             <h2 className="text-center text-lg font-semibold tracking-tight text-gray-900">
               Новый заказ
             </h2>
-            <button
-              type="button"
-              onClick={() => navigate("/")}
-              className="absolute right-0 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-white/50 text-gray-700 shadow-sm backdrop-blur-sm transition hover:bg-white/70"
-              aria-label="Закрыть"
-            >
-              <span className="text-lg leading-none">×</span>
-            </button>
           </div>
 
           <form className="space-y-4" onSubmit={sendOrder} noValidate>
