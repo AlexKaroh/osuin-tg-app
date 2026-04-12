@@ -19,10 +19,7 @@ const menuItems = [
     label: "Заказы",
     icon: (
       <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
-        <path
-          d="M4 6h16v3H4zm0 5h16v3H4zm0 5h10v3H4z"
-          fill="currentColor"
-        />
+        <path d="M4 6h16v3H4zm0 5h16v3H4zm0 5h10v3H4z" fill="currentColor" />
       </svg>
     ),
   },
@@ -53,11 +50,10 @@ const menuItems = [
 ];
 
 export default function TopMenu() {
-  const base =
-    "flex-1 rounded-full py-2 text-sm transition-all duration-200";
+  const base = "flex-1 rounded-full py-2 text-sm transition-all duration-200";
 
   return (
-    <div className="flex gap-1 rounded-full bg-gray-950/30 p-1.5 backdrop-blur-md border border-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.25)]">
+    <div className="flex gap-1 rounded-full p-1.5 bg-gray-950/30  backdrop-blur-sm border border-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.25)]">
       {menuItems.map((item) => (
         <NavLink
           key={item.to}
@@ -68,7 +64,7 @@ export default function TopMenu() {
               "flex flex-col items-center justify-center gap-0.5",
               isActive
                 ? "bg-white/40 text-white"
-                : "bg-transparent text-white/80"
+                : "bg-transparent text-white/80",
             )
           }
         >

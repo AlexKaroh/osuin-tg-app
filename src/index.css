@@ -1,11 +1,114 @@
+@import url("https://fonts.googleapis.com/css2?family=Chiron+Hei+HK:ital,wght@0,200..900;1,200..900&family=Geologica:wght,CRSV@100..900,0&family=TikTok+Sans:opsz,wght@12..36,300..900&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+* {
+  font-family: "Geologica", sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: normal;
+  font-variation-settings:
+    "slnt" 0,
+    "CRSV" 0,
+    "SHRP" 0;
+}
+
 .text-outline {
   text-shadow:
     -1px -1px 0 black,
-     1px -1px 0 black,
-    -1px  1px 0 black,
-     1px  1px 0 black;
+    1px -1px 0 black,
+    -1px 1px 0 black,
+    1px 1px 0 black;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE и Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+/* Home: крупное лого плавно «парит» позади (ease-in-out + transform) */
+.home-floating-brand {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.home-floating-brand::before,
+.home-floating-brand::after {
+  content: "";
+  position: absolute;
+  background-image: var(--home-brand-tile);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  will-change: transform;
+}
+
+.home-floating-brand::before {
+  width: min(92vw, 480px);
+  height: min(92vw, 480px);
+  left: -18%;
+  top: 8%;
+  opacity: 0.09;
+  animation: homeLogoFloatA 36s ease-in-out infinite;
+}
+
+.home-floating-brand::after {
+  width: min(72vw, 360px);
+  height: min(72vw, 360px);
+  right: -14%;
+  bottom: 12%;
+  left: auto;
+  top: auto;
+  opacity: 0.06;
+  animation: homeLogoFloatB 48s ease-in-out infinite;
+  animation-delay: -14s;
+}
+
+@keyframes homeLogoFloatA {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1) rotate(0deg);
+  }
+  22% {
+    transform: translate(14%, 10%) scale(1.05) rotate(4deg);
+  }
+  48% {
+    transform: translate(6%, -12%) scale(0.97) rotate(-3deg);
+  }
+  72% {
+    transform: translate(-10%, 4%) scale(1.02) rotate(2deg);
+  }
+}
+
+@keyframes homeLogoFloatB {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1) rotate(0deg);
+  }
+  25% {
+    transform: translate(-12%, -8%) scale(1.04) rotate(-3.5deg);
+  }
+  50% {
+    transform: translate(8%, 14%) scale(0.96) rotate(2.5deg);
+  }
+  75% {
+    transform: translate(10%, -6%) scale(1.03) rotate(-1.5deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-floating-brand::before,
+  .home-floating-brand::after {
+    animation: none;
+    will-change: auto;
+  }
 }
