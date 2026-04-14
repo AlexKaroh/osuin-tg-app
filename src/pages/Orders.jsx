@@ -96,7 +96,12 @@ export default function Orders() {
     .filter(Boolean)
     .join(" ")
     .trim();
-  const hasTelegramData = Boolean(tgUser?.id || tgUser?.username || tgName);
+  const telegramUsername =
+    typeof tgUser?.username === "string" && tgUser.username.trim() !== ""
+      ? `@${tgUser.username.trim()}`
+      : "";
+  const manualTelegramContact = telegramLink.trim();
+  const resolvedTelegramContact = telegramUsername || manualTelegramContact;
   const canSendViaDirectTelegram =
     Boolean(TELEGRAM_BOT_TOKEN) && Boolean(TELEGRAM_CHAT_ID);
 
@@ -114,7 +119,7 @@ export default function Orders() {
         ? "Введите положительное число."
         : "";
 
-  const contactOk = hasTelegramData || telegramLink.trim() !== "";
+  const contactOk = Boolean(resolvedTelegramContact);
   const hasSendEndpoint =
     Boolean(managerWebhookUrl) || canSendViaDirectTelegram;
   const formReady =
@@ -140,15 +145,15 @@ export default function Orders() {
         telegramId: tgUser?.id ?? null,
         telegramUsername: tgUser?.username ?? null,
         telegramName: tgName || null,
-        telegramLink: telegramLink.trim() || null,
+        telegramLink: manualTelegramContact || null,
         productLink: linkNorm.href,
         productLinkRaw: productLink.trim(),
         priceCny: priceVal,
         size: size.trim() || null,
         comment: comment.trim() || null,
         text: buildOrderText({
-          telegramUsername: tgUser?.username ? `@${tgUser.username}` : null,
-          telegramLink: telegramLink.trim() || null,
+          telegramUsername: telegramUsername || null,
+          telegramLink: manualTelegramContact || null,
           productHref: linkNorm.href,
           priceCny: priceVal.toLocaleString("ru-RU", {
             minimumFractionDigits: 0,
@@ -270,7 +275,7 @@ export default function Orders() {
               />
             </div>
 
-            {!hasTelegramData && (
+            {!telegramUsername && (
               <div>
                 <p className="mb-1.5 text-xs font-medium text-gray-600">
                   Контакт в Telegram
@@ -293,14 +298,12 @@ export default function Orders() {
 
             <button
               type="submit"
-              disabled={sendState === "sending" || !hasSendEndpoint}
+              disabled={sendState === "sending" || !hasSendEndpoint || !formReady}
               className={cn(
                 "flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-sm font-semibold backdrop-blur-sm transition-all",
-                sendState === "sending" || !hasSendEndpoint
+                sendState === "sending" || !hasSendEndpoint || !formReady
                   ? "cursor-not-allowed border border-gray-900/5 bg-gray-500/15 text-gray-500 shadow-none"
-                  : !formReady
-                    ? "cursor-pointer border border-gray-900/5 bg-gray-500/15 text-gray-600 shadow-none hover:bg-gray-500/20"
-                    : "border border-gray-900/10 bg-gray-950/20 text-gray-700 shadow-[0_10px_30px_rgba(0,0,0,0.25)] active:scale-[0.99]",
+                  : "border border-gray-900/10 bg-gray-950/20 text-gray-700 shadow-[0_10px_30px_rgba(0,0,0,0.25)] active:scale-[0.99]",
               )}
             >
               <SendIcon className="h-4 w-4 shrink-0 opacity-80" />
