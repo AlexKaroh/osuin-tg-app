@@ -76,8 +76,15 @@ function shippingUsdMinsk(deliveryKey, billableKg) {
 
 function shippingUsd(billableKg, deliveryKey, isMinsk) {
 	if (billableKg <= 0) return 0;
-	if (!isMinsk) return billableKg * NON_MINSK_USD_PER_KG;
-	return shippingUsdMinsk(deliveryKey, billableKg);
+
+	const base = shippingUsdMinsk(deliveryKey, billableKg);
+
+	if (!isMinsk) {
+		const extra = billableKg * NON_MINSK_USD_PER_KG;
+		return base + extra;
+	}
+
+	return base;
 }
 
 const inputClass =
@@ -544,9 +551,8 @@ export default function Calculator() {
 								Упаковка ({PACKAGING_USD_PER_KG} USD/кг): <span className="font-medium tabular-nums">{fmtByn(calc.packagingByn)} BYN</span>
 							</p>
 							<p>
-								Доставка
-								{!isMinsk ? ` (${NON_MINSK_USD_PER_KG} USD/кг)` : ` (${DELIVERY_RATES[delivery].label})`}:{" "}
-								<span className="font-medium tabular-nums">{fmtByn(calc.freightByn)} BYN</span>
+								Доставка ({DELIVERY_RATES[delivery].label}
+								{!isMinsk && ` + ${NON_MINSK_USD_PER_KG}$/кг`})<span className="font-medium tabular-nums">{fmtByn(calc.freightByn)} BYN</span>
 							</p>
 							<p className="pt-1 text-base font-semibold text-gray-900">Итого доставка + упаковка: {fmtByn(calc.totalByn)} BYN</p>
 							<p className="text-xs leading-relaxed text-gray-600">Стоимость товара: {fmtByn(calc.goodsByn)} BYN</p>
