@@ -3,6 +3,20 @@ import WebApp from "@twa-dev/sdk";
 import { cn } from "../lib/utils";
 import clsx from "clsx";
 
+function sanitizeDecimalInput(raw) {
+	let s = String(raw ?? "");
+	s = s.replace(/[^\d.,]/g, "");
+	const firstSep = s.search(/[.,]/);
+	if (firstSep === -1) return s;
+	const intPart = s.slice(0, firstSep).replace(/[^\d]/g, "");
+	const fracPart = s.slice(firstSep + 1).replace(/[^\d]/g, "");
+	return `${intPart}.${fracPart}`;
+}
+
+function sanitizeIntegerInput(raw) {
+	return String(raw ?? "").replace(/[^\d]/g, "");
+}
+
 const DELIVERY_RATES = {
 	express: { label: "Авиа fast", firstKgUsd: 18, additionalKgUsd: 18 },
 	air: { label: "Авиа", firstKgUsd: 18, additionalKgUsd: 13 },
@@ -366,10 +380,11 @@ export default function Calculator() {
 						type="text"
 						inputMode="decimal"
 						value={goodsPriceCny}
-						onChange={(e) => setGoodsPriceCny(e.target.value)}
+						onChange={(e) => setGoodsPriceCny(sanitizeDecimalInput(e.target.value))}
 						placeholder="Например, 100"
 						className={inputClass}
 						autoComplete="off"
+						maxLength={16}
 					/>
 					{goodsPriceCny.trim() !== "" && calc.goodsCnyValid == null && (
 						<p className="mt-1.5 text-xs text-red-600/90">Введите положительное число в юанях.</p>
@@ -407,10 +422,11 @@ export default function Calculator() {
 								type="text"
 								inputMode="decimal"
 								value={weightGrams}
-								onChange={(e) => setWeightGrams(e.target.value)}
+								onChange={(e) => setWeightGrams(sanitizeIntegerInput(e.target.value))}
 								placeholder="Например, 800"
 								className={inputClass}
 								autoComplete="off"
+								maxLength={7}
 							/>
 							{!calc.weightOk && calc.weightEntered && <p className="mt-1.5 text-xs text-red-600/90">Введите неотрицательное число граммов.</p>}
 						</>
@@ -437,10 +453,11 @@ export default function Calculator() {
 										type="text"
 										inputMode="decimal"
 										value={widthCm}
-										onChange={(e) => setWidthCm(e.target.value)}
+										onChange={(e) => setWidthCm(sanitizeDecimalInput(e.target.value))}
 										placeholder="30"
 										className={inputClass}
 										autoComplete="off"
+										maxLength={8}
 									/>
 								</div>
 								<div>
@@ -449,10 +466,11 @@ export default function Calculator() {
 										type="text"
 										inputMode="decimal"
 										value={lengthCm}
-										onChange={(e) => setLengthCm(e.target.value)}
+										onChange={(e) => setLengthCm(sanitizeDecimalInput(e.target.value))}
 										placeholder="40"
 										className={inputClass}
 										autoComplete="off"
+										maxLength={8}
 									/>
 								</div>
 								<div>
@@ -461,10 +479,11 @@ export default function Calculator() {
 										type="text"
 										inputMode="decimal"
 										value={heightCm}
-										onChange={(e) => setHeightCm(e.target.value)}
+										onChange={(e) => setHeightCm(sanitizeDecimalInput(e.target.value))}
 										placeholder="15"
 										className={inputClass}
 										autoComplete="off"
+										maxLength={8}
 									/>
 								</div>
 							</div>
@@ -482,6 +501,7 @@ export default function Calculator() {
 							placeholder="@username или https://t.me/username"
 							className={inputClass}
 							autoComplete="off"
+							maxLength={120}
 						/>
 					)}
 					<button

@@ -1,18 +1,30 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import WebApp from "@twa-dev/sdk";
-import { cn } from "../lib/utils";
 
 const managerWebhookUrl = import.meta.env.VITE_MANAGER_WEBHOOK_URL;
-const TELEGRAM_BOT_TOKEN = "8565746467:AAFxbkpTnLLN1R_f0odjGVvTQ7Fes3sQbW4";
-const TELEGRAM_CHAT_ID = "-1003049236111";
-const TELEGRAM_MESSAGE_THREAD_ID = 1759;
+
+function sanitizeDecimalInput(raw) {
+	let s = String(raw ?? "");
+	// allow only digits and separators
+	s = s.replace(/[^\d.,]/g, "");
+	// keep only the first separator, normalize to dot
+	const firstSep = s.search(/[.,]/);
+	if (firstSep === -1) return s;
+	const intPart = s.slice(0, firstSep).replace(/[^\d]/g, "");
+	const fracPart = s.slice(firstSep + 1).replace(/[^\d]/g, "");
+	return `${intPart}.${fracPart}`;
+}
 
 const inputClass =
-	"w-full min-w-0 rounded-xl border border-white/50 bg-white/60 px-3 py-2.5 text-sm text-gray-900 outline-none backdrop-blur-sm placeholder:text-gray-400 focus:border-gray-400/50 focus:ring-2 focus:ring-gray-900/10";
+	"w-full min-w-0 rounded-xl border border-white/50 bg-white/60 px-3 py-2.5 text-sm text-gray-900 outline-none backdrop-blur-sm placeholder:text-gray-500 focus:border-white/70 focus:bg-white/70";
+
+const labelClass = "text-sm font-medium text-gray-900/80";
 
 const glass =
 	"rounded-2xl border border-white/25 bg-gray-950/[0.06] shadow-[0_8px_32px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.45)] backdrop-blur-xl";
+
+const buttonBase =
+	"inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60";
 
 function parsePositiveNumber(str) {
 	const n = Number(String(str).replace(",", ".").trim());
@@ -20,11 +32,10 @@ function parsePositiveNumber(str) {
 	return n;
 }
 
-/** Нормализует ссылку (добавляет https:// при отсутствии схемы) и проверяет http(s). */
 function normalizeProductLink(raw) {
 	const t = String(raw).trim();
 	if (!t) return { ok: false, href: "", display: "" };
-	const withScheme = /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(t) ? t : `https://${t}`;
+	const withScheme = /^[a-zA-Z][a-zA-Z\d+-.]*:/.test(t) ? t : `https://${t}`;
 	try {
 		const u = new URL(withScheme);
 		if (u.protocol !== "http:" && u.protocol !== "https:") {
@@ -45,242 +56,322 @@ function buildOrderText(data) {
 		`Ссылка на товар: ${data.productHref}`,
 		`Цена на площадке: ${data.priceCny} ¥`,
 	];
+
 	if (data.size?.trim()) {
 		lines.push(`Размер: ${data.size.trim()}`);
 	} else {
 		lines.push("Размер: —");
 	}
+
 	if (data.comment?.trim()) {
 		lines.push(`Комментарий: ${data.comment.trim()}`);
 	} else {
 		lines.push("Комментарий: —");
 	}
+
 	return lines.join("\n");
 }
 
 function SendIcon({ className }) {
 	return (
-		<svg
-			className={className}
-			viewBox="0 0 24 24"
-			fill="currentColor"
-			aria-hidden>
-			<path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+		<svg viewBox="0 0 24 24" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+			<path
+				d="M3.6 10.3c-.9-.36-.9-1.64 0-2L20.7 1.5c.83-.33 1.68.52 1.35 1.35L15.7 20.4c-.36.9-1.64.9-2 0l-2-5-5-2Z"
+				stroke="currentColor"
+				strokeWidth="1.8"
+				strokeLinejoin="round"
+			/>
+			<path d="M12 12 21.2 2.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
 		</svg>
 	);
 }
 
 export default function Orders() {
-	const navigate = useNavigate();
 	const [productLink, setProductLink] = useState("");
 	const [priceCny, setPriceCny] = useState("");
 	const [size, setSize] = useState("");
 	const [comment, setComment] = useState("");
 	const [telegramLink, setTelegramLink] = useState("");
-	const [sendState, setSendState] = useState("idle");
+
+	const [sendState, setSendState] = useState("idle"); // idle | sending | success | error
 	const [sendError, setSendError] = useState("");
 	const [submitAttempted, setSubmitAttempted] = useState(false);
+
+	const [image, setImage] = useState(null);
+	const [aiLoading, setAiLoading] = useState(false);
+	const [aiError, setAiError] = useState("");
+	const [aiResult, setAiResult] = useState(null);
 
 	const linkNorm = useMemo(() => normalizeProductLink(productLink), [productLink]);
 	const priceVal = useMemo(() => parsePositiveNumber(priceCny), [priceCny]);
 
-	const tgUser = WebApp?.initDataUnsafe?.user ?? globalThis?.Telegram?.WebApp?.initDataUnsafe?.user ?? null;
-	const tgName = [tgUser?.first_name, tgUser?.last_name].filter(Boolean).join(" ").trim();
-	const telegramUsername = typeof tgUser?.username === "string" && tgUser.username.trim() !== "" ? `@${tgUser.username.trim()}` : "";
+	const tgUser =
+		WebApp?.initDataUnsafe?.user ?? globalThis?.Telegram?.WebApp?.initDataUnsafe?.user ?? null;
+	const telegramUsername =
+		typeof tgUser?.username === "string" && tgUser.username.trim() !== "" ? `@${tgUser.username.trim()}` : "";
+
 	const manualTelegramContact = telegramLink.trim();
 	const resolvedTelegramContact = telegramUsername || manualTelegramContact;
-	const canSendViaDirectTelegram = Boolean(TELEGRAM_BOT_TOKEN) && Boolean(TELEGRAM_CHAT_ID);
-
-	const linkError =
-		submitAttempted && !linkNorm.ok
-			? "Вставьте корректную ссылку (http или https)."
-			: productLink.trim() !== "" && !linkNorm.ok
-				? "Проверьте формат ссылки."
-				: "";
-
-	const priceError =
-		submitAttempted && priceVal == null
-			? "Укажите цену на площадке — положительное число в юанях."
-			: priceCny.trim() !== "" && priceVal == null
-				? "Введите положительное число."
-				: "";
 
 	const contactOk = Boolean(resolvedTelegramContact);
-	const hasSendEndpoint = Boolean(managerWebhookUrl) || canSendViaDirectTelegram;
+	const hasSendEndpoint = Boolean(managerWebhookUrl);
 	const formReady = linkNorm.ok && priceVal != null && contactOk && hasSendEndpoint;
 
-	const contactError = submitAttempted && !contactOk ? "Укажите @username или ссылку на Telegram." : "";
+	async function handleAnalyze() {
+		if (!image) return;
+
+		setAiLoading(true);
+		setAiError("");
+
+		try {
+			const formData = new FormData();
+			formData.append("image", image);
+
+			const res = await fetch("/api/analyze", {
+				method: "POST",
+				body: formData,
+			});
+
+			if (!res.ok) throw new Error("analyze_failed");
+
+			const data = await res.json();
+			setAiResult(data);
+		} catch {
+			setAiError("Не удалось распознать изображение");
+		} finally {
+			setAiLoading(false);
+		}
+	}
+
+	function applyAiData() {
+		if (!aiResult) return;
+
+		if (aiResult.price) setPriceCny(String(aiResult.price));
+		if (aiResult.size) setSize(String(aiResult.size));
+
+		if (aiResult.type) {
+			setComment((prev) => (prev ? prev : `Тип товара: ${aiResult.type}`));
+		}
+
+		setAiResult(null);
+	}
 
 	async function sendOrder(e) {
 		e.preventDefault();
 		setSubmitAttempted(true);
-		if (!linkNorm.ok || priceVal == null || !contactOk || !hasSendEndpoint) {
-			return;
-		}
+		if (!formReady) return;
 
 		setSendState("sending");
 		setSendError("");
+
 		try {
 			const payload = {
 				kind: "site_order",
 				telegramId: tgUser?.id ?? null,
-				telegramUsername: tgUser?.username ?? null,
-				telegramName: tgName || null,
+				telegramUsername: telegramUsername || null,
 				telegramLink: manualTelegramContact || null,
+				contact: resolvedTelegramContact,
 				productLink: linkNorm.href,
-				productLinkRaw: productLink.trim(),
 				priceCny: priceVal,
 				size: size.trim() || null,
 				comment: comment.trim() || null,
 				text: buildOrderText({
-					telegramUsername: telegramUsername || null,
-					telegramLink: manualTelegramContact || null,
+					telegramUsername,
+					telegramLink: manualTelegramContact,
 					productHref: linkNorm.href,
-					priceCny: priceVal.toLocaleString("ru-RU", {
-						minimumFractionDigits: 0,
-						maximumFractionDigits: 2,
-					}),
+					priceCny: priceVal,
 					size,
 					comment,
 				}),
 			};
 
-			let res;
-			if (managerWebhookUrl) {
-				res = await fetch(managerWebhookUrl, {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify(payload),
-				});
-			} else {
-				const directUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-				res = await fetch(directUrl, {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						chat_id: TELEGRAM_CHAT_ID,
-						message_thread_id: TELEGRAM_MESSAGE_THREAD_ID,
-						text: payload.text,
-					}),
-				});
-			}
-			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+			const res = await fetch(managerWebhookUrl, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(payload),
+			});
+			if (!res.ok) throw new Error("send_failed");
+
 			setSendState("success");
-		} catch (err) {
+		} catch {
 			setSendState("error");
-			setSendError("Не удалось отправить заявку. Попробуйте позже.");
-			console.error("Send order failed:", err);
+			setSendError("Ошибка отправки");
 		}
 	}
 
 	return (
-		<div className="relative isolate flex min-h-screen justify-center pb-28">
-			<div className="w-full max-w-md p-4">
-				<div className={`${glass} p-4 text-gray-900`}>
-					<div className="relative mb-5 flex items-center justify-center">
-						<h2 className="text-center text-lg font-semibold tracking-tight text-gray-900">Новый заказ</h2>
+		<div className="flex justify-center p-4">
+			<form onSubmit={sendOrder} className={`w-full max-w-md space-y-4 p-4 ${glass}`}>
+				<div className="space-y-1.5">
+					<div className={labelClass}>Ссылка на товар</div>
+					<input
+						value={productLink}
+						onChange={(e) => setProductLink(e.target.value)}
+						placeholder="Например: poizon.com/..."
+						className={inputClass}
+						maxLength={500}
+					/>
+					{submitAttempted && !linkNorm.ok && (
+						<div className="text-xs text-red-600">Укажите корректную ссылку (http/https)</div>
+					)}
+				</div>
+
+				<div className="space-y-1.5">
+					<div className={labelClass}>Цена (¥)</div>
+					<input
+						value={priceCny}
+						onChange={(e) => setPriceCny(sanitizeDecimalInput(e.target.value))}
+						placeholder="Например: 899"
+						inputMode="decimal"
+						className={inputClass}
+						maxLength={16}
+					/>
+					{submitAttempted && priceVal == null && (
+						<div className="text-xs text-red-600">Введите цену больше 0</div>
+					)}
+				</div>
+
+				<div className="space-y-1.5">
+					<div className={labelClass}>Размер (если нужен)</div>
+					<input
+						value={size}
+						onChange={(e) => setSize(e.target.value)}
+						placeholder="Например: 42"
+						className={inputClass}
+						maxLength={50}
+					/>
+				</div>
+
+				<div className="space-y-1.5">
+					<div className={labelClass}>Комментарий (если нужен)</div>
+					<textarea
+						value={comment}
+						onChange={(e) => setComment(e.target.value)}
+						placeholder="Цвет, модель, пожелания…"
+						className={`${inputClass} min-h-24 resize-y`}
+						maxLength={500}
+					/>
+				</div>
+
+				<div className="space-y-1.5">
+					<div className={labelClass}>Контакт в Telegram</div>
+					<input
+						value={telegramLink}
+						onChange={(e) => setTelegramLink(e.target.value)}
+						placeholder={telegramUsername ? `Авто: ${telegramUsername}` : "Например: @username или ссылка"}
+						className={inputClass}
+						maxLength={120}
+					/>
+					{telegramUsername ? (
+						<div className="text-xs text-gray-700/70">Мы уже видим ваш Telegram: {telegramUsername}</div>
+					) : (
+						<div className="text-xs text-gray-700/70">
+							Если приложение не видит Telegram-аккаунт, укажите @username или ссылку вручную.
+						</div>
+					)}
+					{submitAttempted && !contactOk && (
+						<div className="text-xs text-red-600">Укажите контакт в Telegram</div>
+					)}
+				</div>
+
+				<div className="space-y-2">
+					<div className={labelClass}>Фото (опционально)</div>
+					<input
+						type="file"
+						accept="image/*"
+						onChange={(e) => setImage(e.target.files?.[0] ?? null)}
+						className="block w-full text-sm text-gray-900/80 file:mr-3 file:rounded-xl file:border-0 file:bg-white/70 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-gray-900"
+					/>
+
+					<div className="flex gap-2">
+						<button
+							type="button"
+							onClick={handleAnalyze}
+							disabled={!image || aiLoading}
+							className={`${buttonBase} bg-white/70 text-gray-900 hover:bg-white/80`}
+						>
+							{aiLoading ? "Анализ..." : "Заполнить через ИИ"}
+						</button>
+						{aiResult && (
+							<button
+								type="button"
+								onClick={() => setAiResult(null)}
+								className={`${buttonBase} bg-white/40 text-gray-900 hover:bg-white/55`}
+							>
+								Сбросить
+							</button>
+						)}
 					</div>
 
-					<form
-						className="space-y-4"
-						onSubmit={sendOrder}
-						noValidate>
-						<div>
-							<label className="mb-1.5 block text-xs font-medium text-gray-600">
-								Ссылка на товар <span className="text-red-600">*</span>
-							</label>
-							<input
-								type="text"
-								inputMode="url"
-								value={productLink}
-								onChange={(e) => setProductLink(e.target.value)}
-								placeholder="Вставьте ссылку с площадки"
-								className={inputClass}
-								autoComplete="off"
-							/>
-							{linkError && <p className="mt-1.5 text-xs text-red-600/90">{linkError}</p>}
-						</div>
+					{aiError && <div className="text-xs text-red-600">{aiError}</div>}
 
-						<div>
-							<label className="mb-1.5 block text-xs font-medium text-gray-600">
-								Цена на площадке <span className="text-red-600">*</span>
-							</label>
-							<div className="relative">
-								<input
-									type="text"
-									inputMode="decimal"
-									value={priceCny}
-									onChange={(e) => setPriceCny(e.target.value)}
-									placeholder="0"
-									className={cn(inputClass, "pr-9")}
-									autoComplete="off"
-								/>
-								<span
-									className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500"
-									aria-hidden>
-									¥
-								</span>
+					{aiResult && (
+						<div className="rounded-xl border border-white/30 bg-white/50 p-3 text-sm text-gray-900">
+							<div className="font-semibold">Мы нашли</div>
+							<div className="mt-2 space-y-1 text-sm">
+								{aiResult.type && (
+									<div>
+										<span className="text-gray-700/80">Тип:</span> {aiResult.type}
+									</div>
+								)}
+								{aiResult.price && (
+									<div>
+										<span className="text-gray-700/80">Цена:</span> {aiResult.price} ¥
+									</div>
+								)}
+								{aiResult.size && (
+									<div>
+										<span className="text-gray-700/80">Размер:</span> {aiResult.size}
+									</div>
+								)}
 							</div>
-							{priceError && <p className="mt-1.5 text-xs text-red-600/90">{priceError}</p>}
-						</div>
-
-						<div>
-							<label className="mb-1.5 block text-xs font-medium text-gray-600">Размер</label>
-							<input
-								type="text"
-								value={size}
-								onChange={(e) => setSize(e.target.value)}
-								placeholder="Например: 42.5 EU"
-								className={inputClass}
-								autoComplete="off"
-							/>
-						</div>
-
-						<div>
-							<label className="mb-1.5 block text-xs font-medium text-gray-600">Комментарий</label>
-							<textarea
-								value={comment}
-								onChange={(e) => setComment(e.target.value)}
-								placeholder="Цвет, особые пожелания и тд"
-								rows={4}
-								className={cn(inputClass, "min-h-[100px] resize-y")}
-								autoComplete="off"
-							/>
-						</div>
-
-						{!telegramUsername && (
-							<div>
-								<p className="mb-1.5 text-xs font-medium text-gray-600">Контакт в Telegram</p>
-								<input
-									type="text"
-									value={telegramLink}
-									onChange={(e) => setTelegramLink(e.target.value)}
-									placeholder="@username или https://t.me/username"
-									className={inputClass}
-									autoComplete="off"
-								/>
-								{contactError && <p className="mt-1.5 text-xs text-red-600/90">{contactError}</p>}
+							<div className="mt-2 text-xs text-gray-700/70">ИИ может ошибаться — проверьте данные перед отправкой.</div>
+							<div className="mt-3 flex gap-2">
+								<button
+									type="button"
+									onClick={applyAiData}
+									className={`${buttonBase} bg-gray-900 text-white hover:bg-gray-950`}
+								>
+									Применить
+								</button>
+								<button
+									type="button"
+									onClick={() => setAiResult(null)}
+									className={`${buttonBase} bg-white/40 text-gray-900 hover:bg-white/55`}
+								>
+									Отмена
+								</button>
 							</div>
-						)}
-
-						<button
-							type="submit"
-							disabled={sendState === "sending" || !hasSendEndpoint || !formReady}
-							className={cn(
-								"flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-sm font-semibold backdrop-blur-sm transition-all",
-								sendState === "sending" || !hasSendEndpoint || !formReady
-									? "cursor-not-allowed border border-gray-900/5 bg-gray-500/15 text-gray-500 shadow-none"
-									: "border border-gray-900/10 bg-gray-950/20 text-gray-700 shadow-[0_10px_30px_rgba(0,0,0,0.25)] active:scale-[0.99]"
-							)}>
-							<SendIcon className="h-4 w-4 shrink-0 opacity-80" />
-							{sendState === "sending" ? "Отправка..." : "Отправить заказ"}
-						</button>
-
-						{sendState === "success" && <p className="text-center text-[11px] text-emerald-700/95">Заявка отправлена.</p>}
-						{sendState === "error" && <p className="text-center text-[11px] text-red-600/90">{sendError}</p>}
-					</form>
+						</div>
+					)}
 				</div>
-			</div>
+
+				{!hasSendEndpoint && (
+					<div className="rounded-xl border border-yellow-300/50 bg-yellow-50/80 p-3 text-sm text-yellow-900">
+						Не настроен `VITE_MANAGER_WEBHOOK_URL`, поэтому отправка сейчас недоступна.
+					</div>
+				)}
+
+				<div className="flex gap-2">
+					<button
+						type="submit"
+						disabled={!hasSendEndpoint || sendState === "sending"}
+						className={`${buttonBase} flex-1 bg-gray-900 text-white hover:bg-gray-950`}
+					>
+						<SendIcon className="h-4 w-4" />
+						{sendState === "sending" ? "Отправляем..." : "Отправить"}
+					</button>
+				</div>
+
+				{sendState === "success" && (
+					<div className="rounded-xl border border-emerald-200/60 bg-emerald-50/80 p-3 text-sm text-emerald-900">
+						Отправлено. Мы свяжемся с вами в Telegram.
+					</div>
+				)}
+				{sendState === "error" && (
+					<div className="rounded-xl border border-red-200/60 bg-red-50/80 p-3 text-sm text-red-900">{sendError}</div>
+				)}
+			</form>
 		</div>
 	);
 }
