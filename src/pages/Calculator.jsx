@@ -18,8 +18,7 @@ function sanitizeIntegerInput(raw) {
 }
 
 const DELIVERY_RATES = {
-	express: { label: "Авиа fast", firstKgUsd: 18, additionalKgUsd: 18 },
-	air: { label: "Авиа", firstKgUsd: 18, additionalKgUsd: 13 },
+	air: { label: "Авиа", firstKgUsd: 15, additionalKgUsd: 13 },
 	auto: { label: "Авто", firstKgUsd: 8, additionalKgUsd: 7 },
 };
 
@@ -135,7 +134,7 @@ function buildApplicationText(data) {
 }
 
 export default function Calculator() {
-	const [delivery, setDelivery] = useState("express");
+	const [delivery, setDelivery] = useState("air");
 	const [weightGrams, setWeightGrams] = useState("800");
 	const [widthCm, setWidthCm] = useState("30");
 	const [lengthCm, setLengthCm] = useState("40");
@@ -337,13 +336,6 @@ export default function Calculator() {
 				</div>
 
 				<div className={`${glass} mb-3 flex rounded-full py-1 px-3`}>
-					<button
-						type="button"
-						onClick={() => setDelivery("express")}
-						className={cn(buttonBase, "text-nowrap", delivery === "express" ? segActive : segInactive)}>
-						Авиа fast
-					</button>
-
 					<button
 						type="button"
 						onClick={() => setDelivery("air")}
@@ -585,11 +577,8 @@ export default function Calculator() {
 									<span className="font-semibold text-gray-800">Упаковка:</span> {PACKAGING_USD_PER_KG} USD за кг расчётного веса.
 								</p>
 								<p>
-									<span className="font-semibold text-gray-800">Тарифы (Минск):</span> авиа fast — 18 $ за каждый кг; авиа — 18 $ за 1-й кг, 13 $ за
+									<span className="font-semibold text-gray-800">Тарифы (Минск):</span> авиа — 15 $ за 1-й кг, 13 $ за
 									каждый следующий; авто — 8 $ за 1-й кг, 7 $ за каждый следующий.
-								</p>
-								<p>
-									<span className="font-semibold text-gray-800">По упаковке:</span> авиа fast привозит обувь без коробки, авиа привозит с коробкой.
 								</p>
 								<p>
 									<span className="font-semibold text-gray-800">Не Минск:</span> {NON_MINSK_USD_PER_KG} USD/кг, срок +3-5 дней.
